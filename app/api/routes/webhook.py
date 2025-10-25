@@ -1,8 +1,8 @@
-# app/api/routes/webhook.py
-
 import hashlib
 import hmac
+import json
 import logging
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response
@@ -24,7 +24,10 @@ def _clean_sig(sig: str) -> str:
 
 
 def _valid_signature(sig_sha1: Optional[str], sig_sha256: Optional[str], body: bytes) -> bool:
-    """Valida HMAC con APP_SECRET para SHA-256 (preferido) y SHA-1."""
+    """
+    Valida HMAC con APP_SECRET. Prefiere SHA-256 y cae a SHA-1 si aplica.
+    Usa los BYTES CRUDOS del cuerpo (tal cual los envía Meta).
+    """
     secret = (settings.APP_SECRET or "").strip().encode()
     if not secret:
         return False
@@ -79,31 +82,50 @@ async def _receive_instagram_webhook_impl(
     # Log de headers de firma
     sig_sha1 = x_hub_signature or request.headers.get("X-Hub-Signature")
     sig_sha256 = x_hub_signature_256 or request.headers.get("X-Hub-Signature-256")
-    logger.info("Headers: X-Hub-Signature=%s  X-Hub-Signature-256=%s", sig_sha1, sig_sha256)
+    logger.info("🪪 Firmas: X-Hub-Signature=%s | X-Hub-Signature-256=%s", sig_sha1, sig_sha256)
 
-    # Validación de firma (quitar el bypass en prod)
+    # Validación de firma (quitar bypass en prod)
     if settings.APP_SECRET and not _valid_signature(sig_sha1, sig_sha256, body):
         raise HTTPException(status_code=401, detail="Firma inválida")
 
-    # Parseo seguro del payload
+    # Parseo seguro del payload y pretty log
     payload = await request.json()
-    logger.info("Webhook recibido: %s", payload)
+    logger.info("📩 Payload:\n%s", json.dumps(payload, indent=2, ensure_ascii=False))
 
     # Enrutado de eventos: entry[] -> changes[] -> value.messaging[]
     for entry in payload.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value", {})
-            for event in value.get("messaging", []):
-                psid = event.get("sender", {}).get("id")
-                if not psid:
-                    continue
+            events = value.get("messaging", [])
+            for event in events:
+                sender = event.get("sender", {}).get("id")
+                recipient = event.get("recipient", {}).get("id")
+                ts_ms = event.get("timestamp")
+                hora = datetime.fromtimestamp(ts_ms / 1000).strftime("%H:%M:%S") if ts_ms else "?"
 
+                # Mensaje entrante
                 if "message" in event:
                     text = event["message"].get("text") or ""
+                    mid = event["message"].get("mid")
+                    logger.info("💬 %s | PSID:%s → Page:%s | mid:%s | “%s”",
+                                hora, sender, recipient, mid, text)
+
+                    # Respuesta de eco (puedes desactivar o mejorar la lógica)
                     try:
-                        await send_ig_message(psid, f"Recibí: {text or '(sin texto)'}")
+                        resp = await send_ig_message(sender, f"Recibí: {text or '(sin texto)'}")
+                        logger.info("✅ Respuesta enviada | %s", resp)
                     except Exception as e:
-                        logger.exception("Error enviando respuesta: %s", e)
+                        logger.exception("❌ Error enviando respuesta: %s", e)
+
+                # Lecturas / entregas / otros eventos
+                elif "read" in event:
+                    watermark = event["read"].get("watermark")
+                    logger.info("👁️  %s | PSID:%s leyó hasta %s", hora, sender, watermark)
+                elif "delivery" in event:
+                    mids = event["delivery"].get("mids")
+                    logger.info("📬 %s | Entregado: %s", hora, mids)
+                else:
+                    logger.info("ℹ️  %s | Evento no manejado: %s", hora, list(event.keys()))
 
     return {"received": True}
 
