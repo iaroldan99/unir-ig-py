@@ -8,7 +8,6 @@ from typing import Optional
 from fastapi import APIRouter, Header, HTTPException, Request, Response
 from app.core.config import settings
 from app.services.messenger import send_ig_message  # <-- nuevo import
-
 logger = logging.getLogger(__name__)
 router = APIRouter()
 router_public = APIRouter()

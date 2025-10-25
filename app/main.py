@@ -6,7 +6,6 @@ from app.core.logging import configure_logging
 from app.core.errors import register_exception_handlers
 from app.api.routes import auth, messages, webhook
 
-
 def create_app() -> FastAPI:
     configure_logging()
 
@@ -25,14 +24,14 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+
     register_exception_handlers(app)
 
     app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(messages.router, prefix="/messages", tags=["messages"])
+    # Exponer endpoints del webhook únicamente desde el módulo webhook, sin duplicar
     app.include_router(webhook.router, prefix="/webhook", tags=["webhook"])  # compat
     app.include_router(webhook.router_public, tags=["webhook"])  # expone /webhooks/instagram
-    app.include_router(router_public)             # /webhooks/instagram
-    app.include_router(router, prefix="/webhooks")# /webhooks/instagram y /webhooks/instagram (prefixed)
 
     @app.get("/healthz")
     async def healthz() -> dict:
