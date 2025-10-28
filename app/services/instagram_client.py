@@ -74,7 +74,18 @@ class InstagramClient:
             page_id = page.get("id")
             ig_user_id = page.get("instagram_business_account", {}).get("id")
 
-        return OAuthTokens(access_token=page_access_token, page_id=page_id, ig_user_id=ig_user_id, scopes=["pages_messaging", "instagram_manage_messages"])
+        # Scopes reportados de forma consistente con el login
+        return OAuthTokens(
+            access_token=page_access_token,
+            page_id=page_id,
+            ig_user_id=ig_user_id,
+            scopes=[
+                "instagram_basic",
+                "instagram_manage_messages",
+                "pages_show_list",
+                "pages_manage_metadata",
+            ],
+        )
 
     async def list_conversations(self, tokens: "OAuthTokens") -> List[Conversation]:
         # Simplificado: listar conversaciones del inbox

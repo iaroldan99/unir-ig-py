@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     APP_ID: str = Field(default="", env=["APP_ID", "INSTAGRAM_CLIENT_ID"])
     APP_SECRET: str = Field(default="", env=["APP_SECRET", "INSTAGRAM_CLIENT_SECRET"])
     VERIFY_TOKEN: str = Field(default="", env=["VERIFY_TOKEN", "INSTAGRAM_VERIFY_TOKEN"])
-    REDIRECT_URI: str = Field(default="http://localhost:8000/auth/callback", env=["REDIRECT_URI", "INSTAGRAM_REDIRECT_URI"])
+    REDIRECT_URI: str = Field(default="http://localhost:8000/auth/instagram/callback", env=["REDIRECT_URI", "INSTAGRAM_REDIRECT_URI"])
     GRAPH_API_VERSION: str = "19.0"
 
     # CORS

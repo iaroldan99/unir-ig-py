@@ -19,20 +19,29 @@ async def login():
     if not settings.APP_ID or not settings.REDIRECT_URI:
         raise HTTPException(status_code=500, detail="APP_ID o REDIRECT_URI no configurados")
 
+    # Scopes recomendados (sin pages_messaging deprecado)
+    scopes = [
+        "instagram_basic",
+        "instagram_manage_messages",
+        "pages_show_list",
+        "pages_manage_metadata",
+    ]
+
     params = {
         "client_id": settings.APP_ID,
         "redirect_uri": settings.REDIRECT_URI,
-        "scope": "instagram_basic,instagram_manage_messages,pages_show_list,pages_messaging",
+        "scope": ",".join(scopes),
         "response_type": "code",
     }
-    url = "https://www.facebook.com/{v}/dialog/oauth?{q}".format(
-        v=settings.GRAPH_API_VERSION,
-        q=urllib.parse.urlencode(params),
-    )
+
+    version = settings.GRAPH_API_VERSION
+    if not version.startswith("v"):
+        version = "v" + version
+
+    url = f"https://www.facebook.com/{version}/dialog/oauth?{urllib.parse.urlencode(params)}"
     return RedirectResponse(url)
 
 
-@router.get("/callback")
 @router.get("/instagram/callback")
 async def callback(
     code: str,
