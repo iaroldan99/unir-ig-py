@@ -12,8 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
+# EXPOSE es opcional; no afecta a Railway, pero lo podés dejar
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-
+# 👇 ¡Clave! Escuchar en el puerto dinámico que setea Railway
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
