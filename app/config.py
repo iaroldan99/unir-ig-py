@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     APP_ID: str
     APP_SECRET: str
     VERIFY_TOKEN: str  # o INSTAGRAM_VERIFY_TOKEN mapeado por .env
-    GRAPH_API_VERSION: str = "v24.0"
+    GRAPH_API_VERSION: str = "v19.0"
     PAGE_ACCESS_TOKEN: str  # <-- IMPRESCINDIBLE
 
     class Config:
