@@ -84,9 +84,12 @@ async def _receive_instagram_webhook_impl(
     sig_sha256 = x_hub_signature_256 or request.headers.get("X-Hub-Signature-256")
     logger.info("🪪 Firmas: X-Hub-Signature=%s | X-Hub-Signature-256=%s", sig_sha1, sig_sha256)
 
-    # Validación de firma (quitar bypass en prod)
+    # Validación de firma (bypass en entornos no productivos para diagnóstico)
     if settings.APP_SECRET and not _valid_signature(sig_sha1, sig_sha256, body):
-        raise HTTPException(status_code=401, detail="Firma inválida")
+        if (settings.ENV or "development").lower() != "production":
+            logger.warning("⚠️ Firma inválida, bypass por entorno=%s", settings.ENV)
+        else:
+            raise HTTPException(status_code=401, detail="Firma inválida")
 
     # Parseo seguro del payload y pretty log
     payload = await request.json()
