@@ -48,6 +48,8 @@ async def login():
         "instagram_manage_messages",
         "pages_show_list",
         "pages_manage_metadata",
+        # Necesario para consultar negocios y listar páginas vía Business Manager
+        "business_management",
     ]
 
     params = {

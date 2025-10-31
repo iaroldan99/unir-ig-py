@@ -1,6 +1,7 @@
 # app/services/instagram_client.py
 import logging
 from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
 
 import httpx
 
@@ -89,6 +90,41 @@ class InstagramClient:
             {"fields": "id,name,access_token", "access_token": user_access_token},
         )
         pages = me_accounts.get("data", [])
+
+        # Fallback: algunas cuentas bajo Business Manager no devuelven páginas en /me/accounts.
+        # Intentar via /me?fields=businesses -> /{business}/owned_pages y /{business}/client_pages
+        if not pages:
+            try:
+                me_with_businesses = await self._get(
+                    "/me",
+                    {"fields": "businesses{id,name}", "access_token": user_access_token},
+                )
+                businesses = (
+                    (me_with_businesses.get("businesses") or {}).get("data", [])
+                )
+                aggregated_pages: List[Dict[str, Any]] = []
+                for biz in businesses:
+                    bid = biz.get("id")
+                    if not bid:
+                        continue
+                    for rel in ("owned_pages", "client_pages"):
+                        try:
+                            rel_pages = await self._get(
+                                f"/{bid}/{rel}",
+                                {
+                                    "fields": "id,name,access_token",
+                                    "access_token": user_access_token,
+                                },
+                            )
+                            aggregated_pages.extend(rel_pages.get("data", []))
+                        except httpx.HTTPStatusError:
+                            continue
+                if aggregated_pages:
+                    pages = aggregated_pages
+            except httpx.HTTPStatusError:
+                # Si falla el fallback, seguimos con la validación normal
+                pass
+
         if not pages:
             raise AppError("El usuario no administra páginas", 400)
 
@@ -159,7 +195,88 @@ class InstagramClient:
             )
         return {"me_accounts": me_accounts, "pages_probe": pages_out}
 
-    # --- tus métodos de mensajes se quedan igual ---
+    # --- Mensajería IG ---
+
+    async def list_conversations(self, tokens: OAuthTokens) -> List[Conversation]:
+        if not tokens.ig_user_id or not tokens.access_token:
+            raise AppError("Faltan tokens para listar conversaciones", 400)
+
+        params = {
+            "platform": "instagram",
+            "fields": "participants,messages.limit(1){id,message,from,to,created_time}",
+            "access_token": tokens.access_token,
+        }
+        # Intento 1: por IG User ID (recomendado para IG Messaging)
+        try:
+            data = await self._get(f"/{tokens.ig_user_id}/conversations", params)
+        except httpx.HTTPStatusError as e:
+            # Fallback 2: algunas cuentas requieren consultar por PAGE ID
+            try:
+                data = await self._get(f"/{tokens.page_id}/conversations", params)
+            except httpx.HTTPStatusError as e2:
+                # Propagar mensaje claro de Graph
+                try:
+                    err = e2.response.json()
+                    msg = (err.get("error") or {}).get("message") or str(err)
+                except Exception:
+                    msg = e2.response.text
+                logger.error("list_conversations 400: %s", msg)
+                raise AppError(f"Error de Graph al listar conversaciones: {msg}", 400)
+        items = []
+        for conv in data.get("data", []):
+            participants = [p.get("id") for p in (conv.get("participants", {}).get("data", [])) if p.get("id")]
+            last = None
+            msgs = conv.get("messages", {}).get("data", [])
+            if msgs:
+                m = msgs[0]
+                # created_time formato ISO8601 -> epoch
+                ts = 0
+                ct = m.get("created_time")
+                if ct:
+                    try:
+                        ts = int(datetime.fromisoformat(ct.replace("Z", "+00:00")).timestamp())
+                    except Exception:
+                        ts = 0
+                last = ConversationMessage(
+                    id=m.get("id", ""),
+                    from_id=(m.get("from") or {}).get("id", ""),
+                    to_id=((m.get("to") or {}).get("data", [{}])[0].get("id", "")),
+                    text=m.get("message"),
+                    timestamp=ts,
+                )
+            items.append(Conversation(id=conv.get("id", ""), participants=participants, last_message=last))
+        return items
+
+    async def send_message(self, tokens: OAuthTokens, payload: SendMessageRequest) -> SendMessageResponse:
+        if not tokens.access_token:
+            raise AppError("No hay PAGE ACCESS TOKEN configurado", 401)
+
+        url = f"{self.base_graph_url}/me/messages"
+        params = {"access_token": tokens.access_token}
+        body = {
+            "recipient": {"id": payload.recipient_id},
+            "message": {"text": payload.text},
+            "messaging_type": "RESPONSE",
+        }
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(url, params=params, json=body)
+            if resp.status_code != 200:
+                try:
+                    err = resp.json()
+                except Exception:
+                    err = resp.text
+                logger.error("send_message error (%s): %s", resp.status_code, err)
+                # Mensaje específico cuando el recipient es inválido
+                if isinstance(err, dict):
+                    gmsg = (err.get("error") or {}).get("message")
+                else:
+                    gmsg = str(err)
+                raise AppError(f"Error enviando mensaje: {gmsg}", 400)
+            data = resp.json()
+            return SendMessageResponse(
+                message_id=data.get("message_id", ""),
+                recipient_id=data.get("recipient_id", payload.recipient_id),
+            )
 
 
 _instagram_client: Optional[InstagramClient] = None

@@ -1,0 +1,11 @@
+https://phyllomic-fernande-hedonistically.ngrok-free.dev
+t=2025-10-31T16:55:49-0300 lvl=eror msg="heartbeat timeout, terminating session" obj=tunnels.session obj=csess id=500ed3bc8f5c clientid=956cfc44cbf4c6089025a520a9b35c2d
+t=2025-10-31T16:55:49-0300 lvl=eror msg="session closed, starting reconnect loop" obj=tunnels.session obj=csess id=62c811eb2d25 err="session closed"
+t=2025-10-31T16:58:10-0300 lvl=eror msg="heartbeat timeout, terminating session" obj=tunnels.session obj=csess id=47dc33c192ed clientid=956cfc44cbf4c6089025a520a9b35c2d
+t=2025-10-31T16:58:10-0300 lvl=eror msg="session closed, starting reconnect loop" obj=tunnels.session obj=csess id=62c811eb2d25 err="session closed"
+t=2025-10-31T17:00:24-0300 lvl=eror msg="heartbeat timeout, terminating session" obj=tunnels.session obj=csess id=5e5bee0ef5b3 clientid=956cfc44cbf4c6089025a520a9b35c2d
+t=2025-10-31T17:00:24-0300 lvl=eror msg="session closed, starting reconnect loop" obj=tunnels.session obj=csess id=62c811eb2d25 err="session closed"
+t=2025-10-31T17:02:50-0300 lvl=eror msg="heartbeat timeout, terminating session" obj=tunnels.session obj=csess id=4389454ab0ce clientid=956cfc44cbf4c6089025a520a9b35c2d
+t=2025-10-31T17:02:50-0300 lvl=eror msg="session closed, starting reconnect loop" obj=tunnels.session obj=csess id=62c811eb2d25 err="session closed"
+t=2025-10-31T17:05:03-0300 lvl=eror msg="heartbeat timeout, terminating session" obj=tunnels.session obj=csess id=3d2c356397b0 clientid=956cfc44cbf4c6089025a520a9b35c2d
+t=2025-10-31T17:05:03-0300 lvl=eror msg="session closed, starting reconnect loop" obj=tunnels.session obj=csess id=62c811eb2d25 err="session closed"
