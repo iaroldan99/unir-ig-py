@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Token store
     TOKEN_STORE_PATH: str = "data/tokens.json"
 
+    CORE_UNIFIED_URL: str = Field(default="", env="CORE_UNIFIED_URL")  # p.ej. https://core.ngrok-free.app/api/v1/messages/unified
+    CORE_API_KEY: str = Field(default="", env="CORE_API_KEY")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

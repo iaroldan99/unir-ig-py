@@ -113,7 +113,47 @@ async def _receive_instagram_webhook_impl(
                     logger.info("💬 %s | PSID:%s → Page:%s | mid:%s | “%s”",
                                 hora, sender, recipient, mid, text)
 
-                    # Respuesta de eco (puedes desactivar o mejorar la lógica)
+                    # ✅ PUSH AL CORE (nuevo bloque)
+                    try:
+                        import httpx
+                        from app.services.token_store import get_token_store
+
+                        if settings.CORE_UNIFIED_URL and sender and mid:
+                            token_store = get_token_store()
+                            tokens = await token_store.get_tokens()
+                            unified = {
+                                "channel": "instagram",
+                                "external_conversation_id": sender,
+                                "external_message_id": mid,
+                                "sender": sender,
+                                "recipient": tokens.ig_user_id if tokens else recipient,
+                                "direction": "incoming",
+                                "message_type": "text",
+                                "content": text or "",
+                                "timestamp": datetime.utcfromtimestamp(
+                                    (ts_ms or 0)/1000.0
+                                ).isoformat() + "Z",
+                                "metadata": {
+                                    "page_id": tokens.page_id if tokens else recipient,
+                                    "ig_user_id": tokens.ig_user_id if tokens else None
+                                }
+                            }
+                            headers = {"Content-Type": "application/json"}
+                            if settings.CORE_API_KEY:
+                                headers["X-API-Key"] = settings.CORE_API_KEY
+
+                            async with httpx.AsyncClient(timeout=10) as client:
+                                r = await client.post(
+                                    settings.CORE_UNIFIED_URL,
+                                    json=unified,
+                                    headers=headers
+                                )
+                                r.raise_for_status()
+                            logger.info("➡️ Enviado a Core unified: %s", r.text)
+                    except Exception as e:
+                        logger.exception("❌ Error al enviar al Core: %s", e)
+
+                    # Respuesta de eco (opcional)
                     try:
                         resp = await send_ig_message(sender, f"Recibí: {text or '(sin texto)'}")
                         logger.info("✅ Respuesta enviada | %s", resp)
