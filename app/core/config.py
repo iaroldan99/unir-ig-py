@@ -25,7 +25,8 @@ class Settings(BaseSettings):
 
     CORE_UNIFIED_URL: str = Field(default="", env="CORE_UNIFIED_URL")  # p.ej. https://core.ngrok-free.app/api/v1/messages/unified
     CORE_API_KEY: str = Field(default="", env="CORE_API_KEY")
-
+    PAGE_ACCESS_TOKEN: str = Field(default="", env=["PAGE_ACCESS_TOKEN"])
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

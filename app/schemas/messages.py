@@ -14,16 +14,19 @@ class ConversationMessage(BaseModel):
 class Conversation(BaseModel):
     id: str
     participants: List[str]
-    last_message: Optional[ConversationMessage] = None
-
+    last_message: Optional["ConversationMessage"] = None
 
 class SendMessageRequest(BaseModel):
-    recipient_id: str
-    text: str
-
+    # Formato nativo
+    recipient_id: Optional[str] = None
+    text: Optional[str] = None
+    # Compat Core
+    to: Optional[str] = None
+    message: Optional[str] = None
+    # (opcionales por si luego usás media)
+    message_type: str = "text"
+    media_url: Optional[str] = None
 
 class SendMessageResponse(BaseModel):
     message_id: str
     recipient_id: str
-
-
