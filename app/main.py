@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(messages.router, prefix="/messages", tags=["messages"])
+    app.include_router(messages.router_public, tags=["messages"])  # <-- agrega ESTA línea
     # Exponer endpoints del webhook únicamente desde el módulo webhook, sin duplicar
     app.include_router(webhook.router, prefix="/webhook", tags=["webhook"])  # compat
     app.include_router(webhook.router_public, tags=["webhook"])  # expone /webhooks/instagram
