@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     VERSION: str = "0.1.0"
     ENV: str = "development"
     PORT: int = 8000
+    # Integración con Core
+    CORE_API_URL: str = ""  # ej: http://100.24.77.57:8003
+    CORE_SECRET_KEY: str = ""
 
     # Meta App / Graph API (admite variables alternativas usadas por el usuario)
     APP_ID: str = Field(default="", env=["APP_ID", "INSTAGRAM_CLIENT_ID"])
@@ -16,6 +19,7 @@ class Settings(BaseSettings):
     VERIFY_TOKEN: str = Field(default="", env=["VERIFY_TOKEN", "INSTAGRAM_VERIFY_TOKEN"])
     REDIRECT_URI: str = Field(default="http://localhost:8000/auth/instagram/callback", env=["REDIRECT_URI", "INSTAGRAM_REDIRECT_URI"])
     GRAPH_API_VERSION: str = "19.0"
+    PAGE_ACCESS_TOKEN: str = Field(default="", env=["PAGE_ACCESS_TOKEN"])
 
     # CORS
     CORS_ORIGINS: List[str] = ["*"]

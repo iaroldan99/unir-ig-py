@@ -2,10 +2,13 @@ import hashlib
 import hmac
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response
+import httpx
+import hmac
+from hashlib import sha256
 
 from app.core.config import settings
 from app.services.messenger import send_ig_message
@@ -95,12 +98,19 @@ async def _receive_instagram_webhook_impl(
     payload = await request.json()
     logger.info("📩 Payload:\n%s", json.dumps(payload, indent=2, ensure_ascii=False))
 
-    # Enrutado de eventos: entry[] -> changes[] -> value.messaging[]
+    # Enrutado de eventos:
+    # - Variante A (IG/Messenger clásica): entry[].messaging[]
+    # - Variante B (cambios): entry[].changes[].value.messaging[]
     for entry in payload.get("entry", []):
-        for change in entry.get("changes", []):
-            value = change.get("value", {})
-            events = value.get("messaging", [])
-            for event in events:
+        events_list = []
+        if "messaging" in entry:
+            events_list = entry.get("messaging", [])
+        else:
+            for change in entry.get("changes", []):
+                value = change.get("value", {})
+                events_list.extend(value.get("messaging", []))
+
+        for event in events_list:
                 sender = event.get("sender", {}).get("id")
                 recipient = event.get("recipient", {}).get("id")
                 ts_ms = event.get("timestamp")
@@ -129,6 +139,41 @@ async def _receive_instagram_webhook_impl(
                     logger.info("📬 %s | Entregado: %s", hora, mids)
                 else:
                     logger.info("ℹ️  %s | Evento no manejado: %s", hora, list(event.keys()))
+
+                # Reenvío a Core si está configurado
+                if settings.CORE_API_URL:
+                    try:
+                        msg_obj = (event.get("message") or {})
+                        text = msg_obj.get("text") or ""
+                        mid = msg_obj.get("mid") or ""
+                        # timestamp como string ISO8601 (UTC)
+                        ts_iso = (
+                            datetime.utcfromtimestamp(ts_ms / 1000).strftime("%Y-%m-%dT%H:%M:%SZ")
+                            if ts_ms else ""
+                        )
+                        unified_event = {
+                            "channel": "instagram",
+                            "sender": sender or "",
+                            "message": text,
+                            "timestamp": ts_iso,
+                            "message_id": mid,
+                            "message_type": "text",
+                            "sender_name": "",  # desconocido en webhook; completar si se dispone
+                        }
+                        url = settings.CORE_API_URL.rstrip("/") + "/api/v1/messages/unified"
+                        headers = {}
+                        if settings.CORE_SECRET_KEY:
+                            msg_bytes = json.dumps(unified_event, ensure_ascii=False).encode("utf-8")
+                            signature = hmac.new(settings.CORE_SECRET_KEY.encode("utf-8"), msg_bytes, sha256).hexdigest()
+                            headers["X-Core-Signature"] = f"sha256={signature}"
+                        async with httpx.AsyncClient(timeout=10) as client:
+                            r = await client.post(url, json=unified_event, headers=headers)
+                            if r.status_code >= 300:
+                                logger.warning("↪️ Core respondió %s: %s", r.status_code, r.text)
+                            else:
+                                logger.info("↪️ Evento reenviado a Core OK")
+                    except Exception as e:
+                        logger.exception("❌ Error reenviando a Core: %s", e)
 
     return {"received": True}
 
