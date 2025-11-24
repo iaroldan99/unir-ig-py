@@ -77,60 +77,31 @@ def _iso_utc_from_ms(ts_ms: Optional[int]) -> str:
 
 async def _push_to_core_unified(
     *,
-    sender_psid: str,
-    page_id: Optional[str],
-    mid: Optional[str],
-    text: str,
-    ts_ms: Optional[int],
+    channel: str,
+    sender: str,
+    message: str,
+    timestamp: str,
+    message_id: Optional[str] = None,
+    message_type: str = "text",
+    sender_name: Optional[str] = None,
 ):
-    """
-    Envía el mensaje al Core /api/v1/messages/unified con body PLANO.
-    Esquema esperado por el Core:
-      - channel: "instagram"
-      - conversation_id: str
-      - external_message_id: str
-      - sender_identifier: str
-      - recipient_identifier: str
-      - message: str
-      - message_type: "text"
-      - direction: "incoming" | "outgoing"
-      - timestamp: ISO8601 (UTC)
-      - metadata: dict (opcional)
-    """
-    if not getattr(settings, "CORE_UNIFIED_URL", None):
-        logger.warning("CORE_UNIFIED_URL no configurado; no se envía al Core.")
-        return
-
-    # ID de conversación “estable”
-    conversation_id = f"{sender_psid}:{page_id or ''}".strip(":")
-
-    # Timestamp ISO8601 en UTC
-    ts_iso = _iso_utc_from_ms(ts_ms)
-
-    # Metadata opcional con info de tokens
-    token_store = get_token_store()
-    tokens = await token_store.get_tokens()
-    metadata: Dict[str, Any] = {
-        "page_id": getattr(tokens, "page_id", None) or page_id,
-        "ig_user_id": getattr(tokens, "ig_user_id", None),
+    """Envía mensaje al Core unificado."""
+    # Corregir la URL - agregar el path correcto
+    core_url = settings.CORE_UNIFIED_URL.rstrip("/") + "/api/v1/messages/unified"
+    
+    payload = {
+        "channel": channel,
+        "sender": sender,
+        "message": message,
+        "timestamp": timestamp,
+        "message_id": message_id,
+        "message_type": message_type,
+        "sender_name": sender_name,
     }
-
-    # Body PLANO que el Core valida correctamente
-    body = {
-        "channel": "instagram",
-        "sender": sender_psid,
-        "message": text or "",
-        "timestamp": ts_iso,
-        "message_type":"text",
-    }
-
-    headers = {"Content-Type": "application/json"}
-    if getattr(settings, "CORE_API_KEY", None):
-        headers["X-API-Key"] = settings.CORE_API_KEY  # opcional si su Core lo requiere
-
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.post(settings.CORE_UNIFIED_URL, json=body, headers=headers)
-        logger.info("➡️  Push Core %s %s", r.status_code, r.text)
+    
+    async with httpx.AsyncClient() as client:
+        r = await client.post(core_url, json=payload, timeout=10.0)
+        logger.info(f"➡️  Push Core {r.status_code} {r.text[:200]}")
         r.raise_for_status()
 
 # --------------------------------------------------------------------------------------
@@ -201,11 +172,13 @@ async def _receive_instagram_webhook_impl(
                 # 1) Enviar al Core (unified)
                 try:
                     await _push_to_core_unified(
-                        sender_psid=sender or "",
-                        page_id=recipient or "",
-                        mid=mid or "",
-                        text=text or "",
-                        ts_ms=ts_ms,
+                        channel="instagram",
+                        sender=sender or "",
+                        message=text or "",
+                        timestamp=_iso_utc_from_ms(ts_ms),
+                        message_id=mid or "",
+                        message_type="text",
+                        sender_name=None,
                     )
                 except Exception as e:
                     logger.exception("❌ Error al enviar al Core: %s", e)
