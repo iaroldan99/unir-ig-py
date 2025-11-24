@@ -16,7 +16,9 @@ class Settings(BaseSettings):
     VERIFY_TOKEN: str = Field(default="", env=["VERIFY_TOKEN", "INSTAGRAM_VERIFY_TOKEN"])
     REDIRECT_URI: str = Field(default="http://localhost:8000/auth/instagram/callback", env=["REDIRECT_URI", "INSTAGRAM_REDIRECT_URI"])
     GRAPH_API_VERSION: str = "19.0"
-
+    INSTAGRAM_VERIFY_TOKEN: str = Field(default="demo_token")
+    INSTAGRAM_PAGE_ID: str = Field(default="")
+    
     # CORS
     CORS_ORIGINS: List[str] = ["*"]
 

@@ -28,5 +28,6 @@ class SendMessageRequest(BaseModel):
     media_url: Optional[str] = None
 
 class SendMessageResponse(BaseModel):
+    success: bool = True
     message_id: str
     recipient_id: str

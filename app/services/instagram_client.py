@@ -274,6 +274,7 @@ class InstagramClient:
                 raise AppError(f"Error enviando mensaje: {gmsg}", 400)
             data = resp.json()
             return SendMessageResponse(
+                success=True,
                 message_id=data.get("message_id", ""),
                 recipient_id=data.get("recipient_id", payload.recipient_id),
             )

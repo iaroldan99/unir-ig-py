@@ -84,9 +84,9 @@ async def _push_to_core_unified(
     message_id: Optional[str] = None,
     message_type: str = "text",
     sender_name: Optional[str] = None,
+    recipient_name: Optional[str] = None,  # ✅ Agregar este parámetro
 ):
     """Envía mensaje al Core unificado."""
-    # Corregir la URL - agregar el path correcto
     core_url = settings.CORE_UNIFIED_URL.rstrip("/") + "/api/v1/messages/unified"
     
     payload = {
@@ -97,12 +97,34 @@ async def _push_to_core_unified(
         "message_id": message_id,
         "message_type": message_type,
         "sender_name": sender_name,
+        "recipient_name": recipient_name,  # ✅ Agregar al payload
     }
     
     async with httpx.AsyncClient() as client:
         r = await client.post(core_url, json=payload, timeout=10.0)
         logger.info(f"➡️  Push Core {r.status_code} {r.text[:200]}")
         r.raise_for_status()
+
+async def _get_instagram_username(user_id: str) -> Optional[str]:
+    """Obtiene el username de Instagram desde Graph API."""
+    if not user_id or not getattr(settings, "PAGE_ACCESS_TOKEN", None):
+        return None
+    
+    try:
+        url = f"https://graph.facebook.com/{settings.GRAPH_API_VERSION}/{user_id}"
+        params = {
+            "fields": "username,name",
+            "access_token": settings.PAGE_ACCESS_TOKEN
+        }
+        
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url, params=params, timeout=5.0)
+            r.raise_for_status()
+            data = r.json()
+            return data.get("username") or data.get("name")
+    except Exception as e:
+        logger.warning("⚠️ No se pudo obtener username para %s: %s", user_id, e)
+        return None
 
 # --------------------------------------------------------------------------------------
 # GET (verify)
@@ -163,11 +185,22 @@ async def _receive_instagram_webhook_impl(
             ts_ms = event.get("timestamp")
 
             if "message" in event:
-                text = (event["message"] or {}).get("text") or ""
-                mid = (event["message"] or {}).get("mid")
+                message_obj = event.get("message", {})
+                text = message_obj.get("text") or ""
+                mid = message_obj.get("mid")
+                is_echo = message_obj.get("is_echo", False)
 
                 hora = datetime.fromtimestamp((ts_ms or 0) / 1000).strftime("%H:%M:%S") if ts_ms else "?"
                 logger.info("💬 %s | PSID:%s → Page:%s | mid:%s | “%s”", hora, sender, recipient, mid, text)
+
+                 # ✅ Filtrar mensajes outgoing
+                if is_echo or sender == settings.INSTAGRAM_PAGE_ID:
+                    logger.info("⏭️  Mensaje outgoing detectado, no se envía al core")
+                    continue
+
+                sender_name = await _get_instagram_username(sender) if sender else None
+                recipient_name = await _get_instagram_username(recipient) if recipient else None
+
 
                 # 1) Enviar al Core (unified)
                 try:
@@ -178,7 +211,8 @@ async def _receive_instagram_webhook_impl(
                         timestamp=_iso_utc_from_ms(ts_ms),
                         message_id=mid or "",
                         message_type="text",
-                        sender_name=None,
+                        sender_name=sender_name,
+                        recipient_name=recipient_name,
                     )
                 except Exception as e:
                     logger.exception("❌ Error al enviar al Core: %s", e)
